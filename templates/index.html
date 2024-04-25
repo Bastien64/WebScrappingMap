@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps Scraper</title>
+</head>
+<body>
+    <h1>Google Maps Scraper</h1>
+    <form action="/scrape" method="get">
+        <label for="search_query">Recherche Google Maps:</label>
+        <input type="text" id="search_query" name="search_query" placeholder="Entrez votre recherche...">
+        <button type="submit">Rechercher</button>
+    </form>
+    <table>
+        <thead>
+            <tr>
+                <th>URL</th>
+                <th>EMAIL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.url }}</td>
+                <td>{{ result.email }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,81 +1,107 @@
+from flask import Flask, render_template, request
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver import ActionChains
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
 from selenium import webdriver
-import pyautogui
 from bs4 import BeautifulSoup
 import time
-import pandas as pd
-from selenium.webdriver.common.by import By
-from selenium.webdriver import ActionChains
-from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
+import re
 
-filename = "data"
-link = "https://www.google.com/maps/search/electrician+in+Chicago,+IL,+USA/@41.8336478,-87.8720473,11z/data=!3m1!4b1"
+# Initialiser Flask
+app = Flask(__name__)
 
-browser = webdriver.Chrome()
-record = []
-e = []
-le = 0
+# Définir la route pour la page d'accueil
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-def Selenium_extractor():
-    global le  # Declare le as a global variable
-    action = ActionChains(browser)
-    a = browser.find_elements(By.CLASS_NAME, "hfpxzc")
+# Définir la route pour le scraping
+@app.route('/scrape')
+def scrape():
+    # Récupérer la valeur du champ texte
+    search_query = request.args.get('search_query')
+    # Construire l'URL de recherche Google Maps
+    link = f"https://www.google.com/maps/search/{search_query}" if search_query else "https://www.google.com/maps/search/agence+web+biarritz"
 
-    while len(a) < 10:
-        print(len(a))
-        var = len(a)
-        scroll_origin = ScrollOrigin.from_element(a[len(a)-1])
-        action.scroll_from_origin(scroll_origin, 0, 10).perform()
-        time.sleep(2)
-        a = browser.find_elements(By.CLASS_NAME, "hfpxzc")
+    # Initialiser le webdriver Chrome
+    browser = webdriver.Chrome()
+    # Liste pour stocker les résultats
+    results = []
 
-        if len(a) == var:
-            le += 1
-            if le > 20:
+    # Fonction pour extraire les données avec Selenium
+    def Selenium_extractor():
+        nonlocal results
+        le = 0  # Initialise le compteur
+        action = ActionChains(browser)
+        while True:
+            a = browser.find_elements(By.CLASS_NAME, "hfpxzc")
+            print(len(a))
+            if len(a) >= 20 or le > 20:
                 break
-        else:
-            le = 0
+            var = len(a)
+            scroll_origin = ScrollOrigin.from_element(a[len(a)-1])
+            action.scroll_from_origin(scroll_origin, 0, 30).perform()
+            time.sleep(2)
+            le += 1
 
-    for i in range(len(a)):
-        scroll_origin = ScrollOrigin.from_element(a[i])
-        action.scroll_from_origin(scroll_origin, 0, 10).perform()
-        action.move_to_element(a[i]).perform()
-        a[i].click()
-        time.sleep(2)
-        source = browser.page_source
-        soup = BeautifulSoup(source, 'html.parser')
-        try:
-            Name_Html = soup.findAll('h1', {"class": "DUwDvf fontHeadlineLarge"})
+        max_results = 20
+        results_count = 0
+        # Créer un ensemble pour stocker les adresses e-mail uniques
+        unique_emails = set()
+        for i in range(len(a)):
+            try:
+                scroll_origin = ScrollOrigin.from_element(a[i])
+                action.scroll_from_origin(scroll_origin, 0, 10).perform()
+                action.move_to_element(a[i]).perform()
+                WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "hfpxzc")))
+                browser.execute_script("arguments[0].click();", a[i])
+                time.sleep(2)
+                source = browser.page_source
+                soup = BeautifulSoup(source, 'html.parser')
+                links = soup.find_all('a', class_="lcr4fd S9kvJb")
+                for link in links:
+                    href = link.get('href')
+                    browser.get(href)
+                    time.sleep(2)
+                    page_content = browser.page_source
+                    mentions_legales = re.findall(r'Mentions\s+l[ée]gales', page_content, re.IGNORECASE)
+                    if mentions_legales:
+                        print("Mentions légales trouvées pour:", href)
+                        emails_found = re.findall(r'[\w\.-]+@[\w\.-]+', page_content)
+                        for email in emails_found:
+                            # Vérifier si l'e-mail est déjà dans l'ensemble unique_emails
+                            if email not in unique_emails:
+                                unique_emails.add(email)
+                                print("Adresse e-mail trouvée:", email)
+                                # Ajouter l'URL et l'e-mail à la liste des résultats
+                                results.append({"url": href, "email": email})
+                                results_count += 1
+                                if results_count >= max_results:
+                                    return
+                    else:
+                        print("Aucune mention légale trouvée pour:", href)
+            except StaleElementReferenceException as e:
+                print("Erreur de référence d'élément obsolète. Récupération des éléments à nouveau.")
+                continue
+            except Exception as e:
+                print("Erreur inattendue:", e)
+                continue
 
-            name = Name_Html[0].text
-            if name not in e:
-                e.append(name)
-                divs = soup.findAll('div', {"class": "Io6YTe fontBodyMedium"})
-                for j in range(len(divs)):
-                    if str(divs[j].text)[0] == "+":
-                        phone = divs[j].text
+    # Ouvrir l'URL dans le navigateur
+    browser.get(link)
+    time.sleep(10)
+    # Appeler la fonction pour extraire les données
+    Selenium_extractor()
+    # Fermer le navigateur
+    browser.quit()
 
-                Address_Html= divs[0]
-                address=Address_Html.text
-                try:
-                    for z in range(len(divs)):
-                        if str(divs[z].text)[-4] == "." or str(divs[z].text)[-3] == ".":
-                            website = divs[z].text
-                except:
-                    website="Not available"
-                print([name,phone,address,website])
-                record.append((name,phone,address,website))
-                df=pd.DataFrame(record,columns=['Name','Phone number','Address','Website'])  # writing data to the file
-                df.to_csv(filename + '.csv',index=False,encoding='utf-8')
-        except:
-            print("error")
+    # Retourner les résultats à afficher dans le template HTML
+    print(results)
+    return render_template('index.html', results=results)
 
-            continue
-
-
-
-
-
-
-browser.get(str(link))
-time.sleep(10)
-Selenium_extractor()
+# Exécuter l'application Flask
+if __name__ == '__main__':
+    app.run(debug=True)
