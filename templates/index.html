@@ -12,6 +12,7 @@
         <input type="text" id="search_query" name="search_query" placeholder="Entrez votre recherche...">
         <button type="submit">Rechercher</button>
     </form>
+
     <table>
         <thead>
             <tr>
@@ -28,5 +29,8 @@
             {% endfor %}
         </tbody>
     </table>
+    {% if download %}
+    <a href="{{ url_for('download_csv', results=results_json) }}">Télécharger CSV</a>
+{% endif %}
 </body>
 </html>
