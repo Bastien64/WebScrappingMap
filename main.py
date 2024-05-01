@@ -76,7 +76,8 @@ def scrape():
             mentions_legales = re.findall(r'Mentions\s+l[ée]gales', page_content, re.IGNORECASE)
             if mentions_legales:
                 print("Mentions légales trouvées pour:", href)
-                emails = extract_emails(page_content)
+                # Utiliser une expression régulière améliorée pour trouver les adresses e-mail
+                emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content)
                 for email in emails:
                     results.append({"url": href, "email": email})
             else:
@@ -114,7 +115,7 @@ def scrape():
             le += 1
 
 
-        max_results = 300
+        max_results = 20
         results_count = 0
         # Créer un ensemble pour stocker les adresses e-mail uniques
         unique_emails = set()
@@ -137,7 +138,7 @@ def scrape():
                     mentions_legales = re.findall(r'Mentions\s+l[ée]gales', page_content, re.IGNORECASE)
                     if mentions_legales:
                         print("Mentions légales trouvées pour:", href)
-                        emails_found = re.findall(r'[\w\.-]+@[\w\.-]+', page_content)
+                        emails_found = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content)
                         for email in emails_found:
                             # Vérifier si l'e-mail est déjà dans l'ensemble unique_emails
                             if email not in unique_emails:
