@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,7 +12,7 @@ from selenium.webdriver.common.keys import Keys
 import time
 import re
 import ssl
-
+from merge_csv import merge_csv
 from flask import Response
 import json
 
@@ -42,6 +42,7 @@ def filter_results(results):
 def index():
     return render_template('index.html')
 
+# Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
 # Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
 @app.route('/scrape_progressive')
 def scrape_progressive():
@@ -155,6 +156,7 @@ def scrape_progressive():
     print(results_json)
     return render_template('index.html', results=results, valid_emails=valid_emails, results_json=results_json, download=True)
 
+
 # Ajoutez une route pour télécharger les résultats au format CSV
 @app.route('/download_csv')
 def download_csv():
@@ -178,6 +180,18 @@ def download_csv():
     else:
         return "Aucun résultat à télécharger"
 
+@app.route('/merge', methods=['POST'])
+def merge():
+    if request.method == 'POST':
+        file1 = request.files['file1']
+        file2 = request.files['file2']
+
+        file1.save(file1.filename)
+        file2.save(file2.filename)
+
+        merged_file = merge_csv(file1.filename, file2.filename)
+
+        return send_file(merged_file, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)

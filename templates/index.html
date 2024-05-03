@@ -170,7 +170,14 @@ a:hover {
         <input type="text" id="search_query" name="search_query" placeholder="Entrez votre recherche...">
         <button type="submit">Rechercher</button>
     </form>
-
+    <h1>Fusionner deux CSV</h1>
+    <form action="/merge" method="post" enctype="multipart/form-data">
+        <label for="file1">Fichier CSV 1:</label>
+        <input type="file" name="file1" id="file1" accept=".csv" required><br><br>
+        <label for="file2">Fichier CSV 2:</label>
+        <input type="file" name="file2" id="file2" accept=".csv" required><br><br>
+        <input type="submit" value="Fusionner">
+    </form>
     <table>
         <thead>
             <tr>
@@ -192,5 +199,6 @@ a:hover {
     {% if download %}
     <a href="{{ url_for('download_csv', results=results_json) }}">Télécharger CSV</a>
     {% endif %}
+
 </body>
 </html>

@@ -1,0 +1,30 @@
+'''
+    chrome_options = Options()
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--ignore-certificate-errors")
+    # Initialiser le webdriver Chrome
+    browser = webdriver.Remote(
+        command_executor="http://162.19.67.246:4444/wd/hub",
+        options=chrome_options
+    )
+'''
+
+
+                    if mentions_legales:
+                        print("Mentions légales trouvées pour:", href)
+                        emails_found = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content)
+                        phone_numbers_found = re.findall(r'(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]?\d{2}){4}', page_content)
+                        for email in emails_found:
+                            #Vérifier si l'e-mail est déjà dans l'ensemble unique_emails
+                            if email not in unique_emails:
+                                unique_emails.add(email)
+                        for phone_number in phone_numbers_found:
+                            if phone_number not in unique_phone_numbers:
+                                unique_phone_numbers.add(phone_number)
+                                print("Numéro de téléphone trouvé:", phone_number)
+                                 Ajouter l'URL, le numéro de téléphone et l'e-mail à la liste des résultats
+                                results.append({"url": href,"email": email})
+                                results_count += 1
+                                if results_count >= max_results:
+                                    return
