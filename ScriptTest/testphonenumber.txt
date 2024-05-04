@@ -43,6 +43,7 @@ def index():
     return render_template('index.html')
 
 # Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
+# Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
 @app.route('/scrape_progressive')
 def scrape_progressive():
     search_query = request.args.get('search_query')
@@ -63,7 +64,6 @@ def scrape_progressive():
         prev_len = None  
         same_len_count = 0 
         processed_urls = {}  
-        max_results = 1000
         
         while True:
             a = browser.find_elements(By.CLASS_NAME, "hfpxzc")
@@ -75,65 +75,74 @@ def scrape_progressive():
             if same_len_count >= 3:
                 break
             
-            for i in range(len(a)):
-                try:
-                    scroll_origin = ScrollOrigin.from_element(a[i])
-                    action.scroll_from_origin(scroll_origin, 0, 30).perform()
-                    time.sleep(2)
+            var = len(a)
+            scroll_origin = ScrollOrigin.from_element(a[len(a)-1])
+            action.scroll_from_origin(scroll_origin, 0, 30).perform()
+            time.sleep(2)
+        
+        max_results = 1000
+        results_count = 0
+        
+        for i in range(len(a)):
+            try:
+                scroll_origin = ScrollOrigin.from_element(a[i])
+                action.scroll_from_origin(scroll_origin, 0, 10).perform()
+                action.move_to_element(a[i]).perform()
+                WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "hfpxzc")))
+                browser.execute_script("arguments[0].click();", a[i])
+                time.sleep(2)
+                source = browser.page_source
+                soup = BeautifulSoup(source, 'html.parser')
+                links = soup.find_all('a', class_="lcr4fd S9kvJb")
+                print(links)
+                print("Nombre de liens trouvés:", len(links))
+                
+                for link in links:
+                    href = link.get('href')
+                    print("Lien trouvé:", href)
                     
-                    # Le scraping est déclenché après chaque défilement
-                    scroll_origin = ScrollOrigin.from_element(a[i])
-                    action.scroll_from_origin(scroll_origin, 0, 10).perform()
-                    action.move_to_element(a[i]).perform()
-                    WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "hfpxzc")))
-                    browser.execute_script("arguments[0].click();", a[i])
-                    time.sleep(2)
-                    source = browser.page_source
-                    soup = BeautifulSoup(source, 'html.parser')
-                    links = soup.find_all('a', class_="lcr4fd S9kvJb")
+                    if href in processed_urls:
+                        print("URL déjà traitée:", href)
+                        continue
                     
-                    for link in links:
-                        href = link.get('href')
-                        
-                        if href in processed_urls:
-                            print("URL déjà traitée:", href)
-                            continue
-                        
-                        browser.get(href)
-                        time.sleep(2)
-                        page_content = browser.page_source
-                        mentions_legales = re.findall(r'Mentions\s+l[ée]gales', page_content, re.IGNORECASE)
-                        
-                        if mentions_legales:
-                            print("Mentions légales trouvées pour:", href)
-                            emails_found = set(re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content))
-                            phone_numbers_found = re.findall(r'(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]?\d{2}){4}', page_content)
+                    browser.get(href)
+                    time.sleep(2)
+                    page_content = browser.page_source
+                    mentions_legales = re.findall(r'Mentions\s+l[ée]gales', page_content, re.IGNORECASE)
+                    
+                    if mentions_legales:
+                        print("Mentions légales trouvées pour:", href)
+                        emails_found = set(re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content))
+                        print("Emails trouvés:", emails_found)
+                        phone_numbers_found = re.findall(r'(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]?\d{2}){4}', page_content)
+                        print ("Numéros de téléphone trouvés:", phone_numbers_found)
 
-                            for email in emails_found:
-                                phone_number = None
-                                if email not in processed_urls:  
-                                    for phone_number in phone_numbers_found:
-                                        if phone_number not in processed_urls.values():  
-                                            processed_urls[href] = phone_number  
-                                            break
-                                    else:
-                                        phone_number = None
-                                    
-                                    if phone_number:  
-                                        results.append({"url": href, "phone_number": phone_number, "email": email})
-                                        results_count += 1
-                                    
-                                    if results_count >= max_results:
-                                        return
-                        else:
-                            print("Aucune mention légale trouvée pour:", href)
-                            processed_urls[href] = None  
-                except StaleElementReferenceException as e:
-                    print("Erreur de référence d'élément obsolète. Récupération des éléments à nouveau.")
-                    continue
-                except Exception as e:
-                    print("Erreur inattendue:", e)
-                    continue
+                        for email in emails_found:
+                            phone_number = None
+                            if email not in processed_urls:  
+                                for phone_number in phone_numbers_found:
+                                    if phone_number not in processed_urls.values():  
+                                        processed_urls[href] = phone_number  
+                                        print("Email trouvé:", email)
+                                        break
+                                else:
+                                    phone_number = None
+                                
+                                if phone_number:  
+                                    results.append({"url": href, "phone_number": phone_number, "email": email})
+                                    results_count += 1
+                                
+                                if results_count >= max_results:
+                                    return
+                    else:
+                        print("Aucune mention légale trouvée pour:", href)
+                        processed_urls[href] = None  
+            except StaleElementReferenceException as e:
+                print("Erreur de référence d'élément obsolète. Récupération des éléments à nouveau.")
+                continue
+            except Exception as e:
+                print("Erreur inattendue:", e)
+                continue
 
     # Ouvrir l'URL dans le navigateur
     browser.get(link)

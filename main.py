@@ -1,22 +1,6 @@
-from flask import Flask, render_template, request, send_file
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver import ActionChains
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
-from bs4 import BeautifulSoup
-from selenium.webdriver.common.keys import Keys
-import time
-import re
-import ssl
-from merge_csv import merge_csv
-from flask import Response
-import json
+from flask import Flask, render_template, request, send_file, Response
+from flask_dependencies import *
 
-# Initialiser Flask
 app = Flask(__name__)
 
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -27,12 +11,11 @@ def filter_results(results):
     valid_emails = []
 
     for result in results:
-        # Vérifier si l'URL est unique
+
         if result["url"] not in seen_urls:
             seen_urls.add(result["url"])
             unique_results.append(result)
 
-        # Vérifier le format de l'adresse e-mail
         if re.match(r'[^@]+@[^@]+\.[^@]+', result["email"]):
             valid_emails.append(result["email"])
 
@@ -42,8 +25,7 @@ def filter_results(results):
 def index():
     return render_template('index.html')
 
-# Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
-# Ajouter une nouvelle route pour gérer le scrolling et le scraping progressif
+
 @app.route('/scrape_progressive')
 def scrape_progressive():
     search_query = request.args.get('search_query')
@@ -52,12 +34,12 @@ def scrape_progressive():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--ignore-certificate-errors")
-    # Initialiser le webdriver Chrome
+
     browser = webdriver.Chrome(options=chrome_options)
 
     results = []
 
-    # Fonction pour extraire les données de manière progressive
+
     def progressive_extraction():
         nonlocal results
         action = ActionChains(browser)
@@ -80,7 +62,7 @@ def scrape_progressive():
             action.scroll_from_origin(scroll_origin, 0, 30).perform()
             time.sleep(2)
         
-        max_results = 1000
+        max_results = 10000
         results_count = 0
         
         for i in range(len(a)):
@@ -90,14 +72,24 @@ def scrape_progressive():
                 action.move_to_element(a[i]).perform()
                 WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "hfpxzc")))
                 browser.execute_script("arguments[0].click();", a[i])
-                time.sleep(2)
+                time.sleep(5)
                 source = browser.page_source
                 soup = BeautifulSoup(source, 'html.parser')
                 links = soup.find_all('a', class_="lcr4fd S9kvJb")
+                print(links)
+                print("Nombre de liens trouvés:", len(links))
                 
                 for link in links:
                     href = link.get('href')
-                    
+                    parsed_url = urlparse(href)
+
+
+                    if parsed_url.scheme not in ['http', 'https']:
+                        print("URL invalide:", href)
+                        continue
+
+                    print("Lien trouvé:", href)
+
                     if href in processed_urls:
                         print("URL déjà traitée:", href)
                         continue
@@ -110,22 +102,26 @@ def scrape_progressive():
                     if mentions_legales:
                         print("Mentions légales trouvées pour:", href)
                         emails_found = set(re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', page_content))
-                        phone_numbers_found = re.findall(r'(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]?\d{2}){4}', page_content)
+                        print("Emails trouvés:", emails_found)
+                        phone_numbers_found = re.findall(r'0\d\s\d{2}\s\d{2}\s\d{2}\s\d{2}', page_content)
+                        print ("Numéros de téléphone trouvés:", phone_numbers_found)
 
                         for email in emails_found:
-                            phone_number = None
+                            phone_number = "Téléphone non trouvé"  # 
                             if email not in processed_urls:  
                                 for phone_number in phone_numbers_found:
                                     if phone_number not in processed_urls.values():  
                                         processed_urls[href] = phone_number  
+                                        print("Email trouvé:", email)
                                         break
                                 else:
-                                    phone_number = None
+                                     phone_number = "Téléphone non trouvé"  # 
                                 
                                 if phone_number:  
                                     results.append({"url": href, "phone_number": phone_number, "email": email})
                                     results_count += 1
-                                
+                                    print("Résultats trouvés:", results_count)
+                            
                                 if results_count >= max_results:
                                     return
                     else:
@@ -138,7 +134,7 @@ def scrape_progressive():
                 print("Erreur inattendue:", e)
                 continue
 
-    # Ouvrir l'URL dans le navigateur
+
     browser.get(link)
     time.sleep(10)
     try:
@@ -147,7 +143,7 @@ def scrape_progressive():
     except Exception as e:
         print("Erreur lors du clic sur Tout accepter:", e)
 
-    # Appeler la fonction d'extraction progressive
+
     progressive_extraction()
     browser.quit()
 
@@ -157,23 +153,18 @@ def scrape_progressive():
     return render_template('index.html', results=results, valid_emails=valid_emails, results_json=results_json, download=True)
 
 
-# Ajoutez une route pour télécharger les résultats au format CSV
+
 @app.route('/download_csv')
 def download_csv():
-    # Récupérer la chaîne JSON des résultats passés en tant qu'argument
+
     results_json = request.args.get('results')
 
-    # Vérifier si des résultats sont disponibles
-    if results_json:
-        # Convertir la chaîne JSON en une liste de dictionnaires
-        results = json.loads(results_json)
 
-        # Créez une chaîne CSV à partir des résultats
+    if results_json:
+        results = json.loads(results_json)
         csv_data = "URL,Email,Numero de telephone\n"
         for result in results:
             csv_data += f"{result['url']},{result['email']},{result['phone_number']}\n"
-
-        # Créez une réponse Flask avec le contenu CSV
         response = Response(csv_data, mimetype='text/csv')
         response.headers.set("Content-Disposition", "attachment", filename="results.csv")
         return response
@@ -190,6 +181,8 @@ def merge():
         file2.save(file2.filename)
 
         merged_file = merge_csv(file1.filename, file2.filename)
+        os.remove(file1.filename)
+        os.remove(file2.filename)
 
         return send_file(merged_file, as_attachment=True)
 
